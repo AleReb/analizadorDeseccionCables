@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: CERN-OHL-S-2.0
-# Modified 2026-09-24: live label dragging, image area control and closure undo.
+# Modified 2026-09-24: editable automatic proposals, ruler verification and measurement review.
 import csv
 import math
 from copy import deepcopy
@@ -22,7 +22,7 @@ from matplotlib.patches import Circle
 # DEFAULTS
 # ============================================================
 
-__version__ = "5.2.0"
+__version__ = "5.3.0"
 
 DEFAULT_REQUIREMENTS = {
     "Width (mm)": ("none",),
@@ -344,6 +344,12 @@ class WireMeasurementApp:
 
         self.step_history = []
         self.label_drag = None
+        self.point_drag = None
+        self.pending_review = False
+        self.auto_requested = False
+        self.auto_proposals = {}
+        self.accepted_points = {}
+        self.session_setup = None
         self.steps = []
         self.step_index = -1
         self.current_points = []
@@ -497,10 +503,29 @@ class WireMeasurementApp:
             state=tk.DISABLED,
         )
         self.undo_step_button.pack(side=tk.LEFT, padx=(0, 16))
+        self.auto_button = ttk.Button(view_controls, text="Auto Measure",
+                                      command=self.start_automatic_measurement)
+        self.auto_button.pack(side=tk.LEFT, padx=4)
+        self.accept_button = ttk.Button(view_controls, text="Accept Step",
+                                        command=self.complete_current_step, state=tk.DISABLED)
+        self.accept_button.pack(side=tk.LEFT, padx=4)
+        self.manual_step_button = ttk.Button(view_controls, text="Redraw Step",
+                                             command=self.redraw_step_manually, state=tk.DISABLED)
+        self.manual_step_button.pack(side=tk.LEFT, padx=4)
         ttk.Label(view_controls, text="Image area:").pack(side=tk.LEFT)
         self.image_area_var = tk.DoubleVar(value=75)
         ttk.Scale(view_controls, from_=40, to=95, variable=self.image_area_var,
                   command=self.resize_image_area).pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        review_controls = ttk.Frame(main)
+        review_controls.pack(fill=tk.X, pady=(0, 6))
+        ttk.Label(review_controls, text="Correct measurement:").pack(side=tk.LEFT)
+        self.edit_step_combo = ttk.Combobox(review_controls, state="readonly", width=65)
+        self.edit_step_combo.pack(side=tk.LEFT, padx=4)
+        self.edit_step_button = ttk.Button(review_controls, text="Edit Selected",
+                                           command=self.edit_selected_step, state=tk.DISABLED)
+        self.edit_step_button.pack(side=tk.LEFT, padx=4)
+        ttk.Label(review_controls, text="Drag control points, then Accept Step. Ruler midpoint = half the entered length.").pack(side=tk.LEFT, padx=8)
 
         self.view_panes = ttk.Panedwindow(main, orient=tk.VERTICAL)
         self.view_panes.pack(fill=tk.BOTH, expand=True)
@@ -848,12 +873,16 @@ class WireMeasurementApp:
     # --------------------------------------------------------
 
     def get_pair_count(self):
+        if self.session_setup is not None:
+            return self.session_setup["pairs"]
         value = int(self.pair_count_var.get())
         if value < 1:
             raise ValueError("Pairs must be at least 1.")
         return value
 
     def get_points_per_circle(self):
+        if self.session_setup is not None:
+            return self.session_setup["circle_points"]
         value = int(self.points_per_circle_var.get())
         if value < 4:
             raise ValueError("Circle points must be at least 4.")
@@ -925,14 +954,14 @@ class WireMeasurementApp:
             return
 
         try:
-            scale_length = self.get_scale_length_mm()
-            pair_count = self.get_pair_count()
-            points_per_circle = self.get_points_per_circle()
-        except ValueError as exc:
+            scale_length = float(self.scale_length_var.get().replace(",", "."))
+            pair_count = int(self.pair_count_var.get())
+            points_per_circle = int(self.points_per_circle_var.get())
+        except (ValueError, tk.TclError) as exc:
             messagebox.showerror("Invalid Setup", str(exc))
             return
 
-        if scale_length <= 0:
+        if not np.isfinite(scale_length) or scale_length <= 0:
             messagebox.showerror("Invalid Scale", "Ruler length must be greater than zero.")
             return
         if pair_count <= 0:
@@ -943,6 +972,8 @@ class WireMeasurementApp:
             return
 
         self.reset_measurement_state(keep_image=True)
+        self.session_setup = dict(pairs=pair_count, circle_points=points_per_circle,
+                                  scale_length=scale_length)
 
         self.lobes = [None for _ in range(2 * pair_count)]
         self.tabs = [None for _ in range(pair_count)]
@@ -957,11 +988,17 @@ class WireMeasurementApp:
 
         self.show_image()
         self.update_step_status()
+        return True
 
     def cancel_measurement(self):
         if self.step_index >= 0:
             self.step_index = -1
             self.current_points = []
+            self.pending_review = False
+            self.point_drag = None
+            self.auto_requested = False
+            self.accept_button.config(state=tk.DISABLED)
+            self.manual_step_button.config(state=tk.DISABLED)
             self.clear_preview_artists()
             self.status_var.set("Measurement cancelled. Existing completed results are unchanged.")
             self.canvas.draw_idle()
@@ -969,6 +1006,17 @@ class WireMeasurementApp:
     def reset_measurement_state(self, keep_image=False):
         self.step_history = []
         self.label_drag = None
+        self.point_drag = None
+        self.pending_review = False
+        self.auto_requested = False
+        self.auto_proposals = {}
+        self.accepted_points = {}
+        self.session_setup = None
+        self.accept_button.config(state=tk.DISABLED)
+        self.manual_step_button.config(state=tk.DISABLED)
+        self.edit_step_button.config(state=tk.DISABLED)
+        self.edit_step_combo.config(values=())
+        self.edit_step_combo.set("")
         self.steps = []
         self.step_index = -1
         self.current_points = []
@@ -1011,6 +1059,8 @@ class WireMeasurementApp:
             self.fit_button.config(state=tk.DISABLED)
 
     def get_scale_length_mm(self):
+        if self.session_setup is not None:
+            return self.session_setup["scale_length"]
         try:
             return float(self.scale_length_var.get().replace(",", "."))
         except ValueError as exc:
@@ -1027,16 +1077,155 @@ class WireMeasurementApp:
         self.status_var.set(
             f"Step {self.step_index + 1}/{len(self.steps)} — "
             f"{step['label']} — points {current}/{needed}"
+            + (" — Drag points to adjust, then Accept Step." if self.pending_review else "")
+            + (" Verify the conductor boundary: reflections/cavities can affect detection."
+               if self.pending_review and step["kind"] == "conductor"
+               and self.step_index in self.auto_proposals else "")
         )
 
     # --------------------------------------------------------
     # INTERACTION
     # --------------------------------------------------------
 
+    def start_automatic_measurement(self):
+        if self.start_measurement():
+            self.auto_requested = True
+            self.status_var.set("Automatic mode: mark the ruler endpoints, check the midpoint and Accept Step.")
+
+    def create_auto_proposals(self):
+        self.auto_requested = False
+        self.status_var.set("Detecting green/yellow pairs...")
+        self.root.update_idletasks()
+        try:
+            from automatic_measurement import detect_pairs
+            pairs = detect_pairs(self.image_array, self.get_pair_count())
+            proposals = {}
+            for index, step in enumerate(self.steps[1:], start=1):
+                pair = pairs[step["pair"]]
+                if step["kind"] == "tab":
+                    points = pair["tab"]
+                else:
+                    points = pair["lobes"][step["side"]-1][step["kind"]]
+                    indices = np.linspace(0, len(points)-1, step["count"], dtype=int)
+                    points = points[indices]
+                proposals[index] = np.asarray(points, dtype=float).copy()
+            self.auto_proposals = proposals
+        except Exception as exc:
+            messagebox.showwarning(
+                "Automatic detection",
+                f"Automatic detection could not prepare all contours.\n{exc}\n\n"
+                "Calibration is preserved. Continue marking the contours manually.",
+            )
+
+    def prepare_current_step(self):
+        if self.step_index in self.auto_proposals:
+            self.current_points = [p.copy() for p in self.auto_proposals[self.step_index]]
+        self.draw_current_points()
+        self.update_step_status()
+
+    def draw_current_points(self):
+        self.clear_preview_artists()
+        if self.step_index < 0:
+            return
+        step = self.steps[self.step_index]
+        self.pending_review = len(self.current_points) >= step["count"]
+        self.accept_button.config(state=tk.NORMAL if self.pending_review else tk.DISABLED)
+        self.manual_step_button.config(state=tk.NORMAL)
+        if self.current_points:
+            points = np.asarray(self.current_points)
+            self.preview_artists.extend(self.ax.plot(points[:, 0], points[:, 1], "o",
+                                                     ms=6, mec="#006b7a", mfc="white", zorder=10))
+            if step["kind"] in ("ruler", "tab") and len(points) == 2:
+                self.preview_artists.extend(self.ax.plot(points[:, 0], points[:, 1],
+                                                         color="#006b7a", linewidth=1.8))
+                if step["kind"] == "ruler":
+                    self.preview_artists.extend(self.draw_ruler_ticks(self.ax, points))
+            elif step["kind"] in ("outer", "conductor") and len(points) >= 3:
+                center, radius, _ = fit_circle(points)
+                circle = Circle(center, radius, fill=False, ec="#006b7a", ls="--", lw=1.5)
+                self.ax.add_patch(circle)
+                self.preview_artists.append(circle)
+        self.canvas.draw_idle()
+
+    def draw_ruler_ticks(self, axes, points):
+        points = np.asarray(points, dtype=float)
+        vector = points[1]-points[0]
+        length = np.linalg.norm(vector)
+        if length <= 0:
+            return []
+        normal = np.array([-vector[1], vector[0]]) / length
+        tick_size = length*.035
+        artists = []
+        for fraction in (0., .5, 1.):
+            point = points[0]+fraction*vector
+            ends = np.array([point-normal*tick_size, point+normal*tick_size])
+            artists.extend(axes.plot(ends[:, 0], ends[:, 1], color="#00758a", lw=1.8))
+            artists.append(axes.annotate(
+                f"{fraction*self.get_scale_length_mm():.3f} mm", xy=point,
+                xytext=(0, 15 if fraction == .5 else -16), textcoords="offset points",
+                ha=("center" if fraction == .5 else
+                    ("right" if (fraction == 0) == (vector[0] >= 0) else "left")), fontsize=8,
+                color="#00758a", bbox=dict(fc="white", ec="none", alpha=.85),
+                annotation_clip=False,
+            ))
+        return artists
+
+    def redraw_step_manually(self):
+        if self.step_index < 0:
+            return
+        self.auto_proposals.pop(self.step_index, None)
+        self.current_points = []
+        self.point_drag = None
+        self.draw_current_points()
+        self.update_step_status()
+
+    def update_edit_steps(self):
+        values = [f"{i+1}: {self.steps[i]['label']}" for i in range(len(self.step_history))]
+        self.edit_step_combo.config(values=values)
+        self.edit_step_button.config(state=tk.NORMAL if values else tk.DISABLED)
+        if values:
+            self.edit_step_combo.current(len(values)-1)
+        else:
+            self.edit_step_combo.set("")
+
+    def edit_selected_step(self):
+        index = self.edit_step_combo.current()
+        if not 0 <= index < len(self.step_history):
+            return
+        # Reuse accepted pixel coordinates downstream; measurements are recalculated.
+        for i, points in self.accepted_points.items():
+            if i >= index:
+                self.auto_proposals[i] = points.copy()
+        snapshot = deepcopy(self.step_history[index])
+        self.step_history = self.step_history[:index]
+        for name, value in snapshot.items():
+            setattr(self, name, value)
+        self.point_drag = self.label_drag = None
+        self.auto_requested = False
+        self.summary_rows = None
+        self.save_button.config(state=tk.DISABLED)
+        self.csv_button.config(state=tk.DISABLED)
+        self.undo_button.config(state=tk.NORMAL)
+        self.undo_step_button.config(state=tk.NORMAL if self.step_history else tk.DISABLED)
+        self._populate_empty_table()
+        if self.pixels_per_mm is None:
+            self.calibration_var.set("Calibration: review ruler")
+        self.clear_preview_artists()
+        self.redraw_completed_geometry(show_labels=False)
+        self.update_edit_steps()
+        self.draw_current_points()
+        self.update_step_status()
+
     def on_mouse_click(self, event):
         if getattr(self.toolbar, "mode", ""):
             return
 
+        if event.button == 1 and not event.key and self.current_points:
+            pixels = self.ax.transData.transform(np.asarray(self.current_points))
+            distances = np.linalg.norm(pixels-[event.x, event.y], axis=1)
+            if np.min(distances) <= 9:
+                self.point_drag = int(np.argmin(distances))
+                return
         # Test label boxes before collecting points, even outside the image axes.
         if event.button == 1 and not event.key:
             for key, annotation in reversed(list(self.live_annotations.items())):
@@ -1077,38 +1266,16 @@ class WireMeasurementApp:
         if event.xdata is None or event.ydata is None:
             return
 
+        if self.pending_review:
+            return
+
         point = np.array([event.xdata, event.ydata], dtype=float)
         self.current_points.append(point)
-
-        marker = self.ax.plot(
-            point[0],
-            point[1],
-            marker="+",
-            markersize=9,
-            linestyle="None",
-            color="black",
-        )[0]
-        self.preview_artists.append(marker)
-
-        step = self.steps[self.step_index]
-
-        if step["kind"] in ("ruler", "tab") and len(self.current_points) == 2:
-            p1, p2 = self.current_points
-            preview_line = self.ax.plot(
-                [p1[0], p2[0]],
-                [p1[1], p2[1]],
-                linewidth=1.8,
-                color="black",
-            )[0]
-            self.preview_artists.append(preview_line)
-
+        self.draw_current_points()
         self.update_step_status()
-        self.canvas.draw_idle()
-
-        if len(self.current_points) >= step["count"]:
-            self.complete_current_step()
 
     def on_mouse_release(self, event):
+        self.point_drag = None
         if self.label_drag is not None:
             self.capture_annotation_offsets()
             self.label_drag = None
@@ -1124,6 +1291,7 @@ class WireMeasurementApp:
         snapshot = self.step_history.pop()
         self.clear_preview_artists()
         self.label_drag = None
+        self.point_drag = None
         for name, value in snapshot.items():
             setattr(self, name, value)
         self.summary_rows = None
@@ -1135,6 +1303,7 @@ class WireMeasurementApp:
         if self.pixels_per_mm is None:
             self.calibration_var.set("Calibration: not set")
         self.redraw_completed_geometry(show_labels=False)
+        self.update_edit_steps()
         # Reopen the step just before its closing point so it can be corrected.
         self.undo_point()
 
@@ -1145,37 +1314,9 @@ class WireMeasurementApp:
 
         self.current_points.pop()
 
-        while self.preview_artists:
-            artist = self.preview_artists.pop()
-            try:
-                artist.remove()
-            except Exception:
-                pass
-
-        for point in self.current_points:
-            marker = self.ax.plot(
-                point[0],
-                point[1],
-                marker="+",
-                markersize=9,
-                linestyle="None",
-                color="black",
-            )[0]
-            self.preview_artists.append(marker)
-
-        step = self.steps[self.step_index]
-        if step["kind"] in ("ruler", "tab") and len(self.current_points) == 2:
-            p1, p2 = self.current_points
-            preview_line = self.ax.plot(
-                [p1[0], p2[0]],
-                [p1[1], p2[1]],
-                linewidth=1.8,
-                color="black",
-            )[0]
-            self.preview_artists.append(preview_line)
-
+        self.point_drag = None
+        self.draw_current_points()
         self.update_step_status()
-        self.canvas.draw_idle()
 
     def on_scroll(self, event):
         if self.image is None or event.inaxes != self.ax:
@@ -1220,6 +1361,12 @@ class WireMeasurementApp:
         self.canvas.draw_idle()
 
     def on_mouse_move(self, event):
+        if self.point_drag is not None:
+            if event.inaxes == self.ax and event.xdata is not None and event.ydata is not None:
+                self.current_points[self.point_drag] = np.array([event.xdata, event.ydata])
+                self.draw_current_points()
+                self.update_step_status()
+            return
         if self.label_drag is not None:
             key, annotation, start_x, start_y, offset = self.label_drag
             factor = 72.0 / self.figure.dpi
@@ -1248,7 +1395,7 @@ class WireMeasurementApp:
             self.canvas.draw_idle()
             return
 
-        if self.step_index >= 0:
+        if self.step_index >= 0 and not self.pending_review:
             step = self.steps[self.step_index]
             self.status_var.set(
                 f"Step {self.step_index + 1}/{len(self.steps)} — {step['label']} — "
@@ -1279,6 +1426,8 @@ class WireMeasurementApp:
     # --------------------------------------------------------
 
     def complete_current_step(self):
+        if self.step_index < 0 or len(self.current_points) < self.steps[self.step_index]["count"]:
+            return
         step = self.steps[self.step_index]
         points = np.asarray(self.current_points, dtype=float)
         snapshot = {name: deepcopy(getattr(self, name)) for name in (
@@ -1287,6 +1436,12 @@ class WireMeasurementApp:
         )}
 
         try:
+            if not np.all(np.isfinite(points)):
+                raise ValueError("All control points must have finite coordinates.")
+            if step["kind"] in ("outer", "conductor"):
+                matrix = np.column_stack((points, np.ones(len(points))))
+                if np.linalg.matrix_rank(matrix) < 3:
+                    raise ValueError("Circle points must not all lie on one straight line.")
             if step["kind"] == "ruler":
                 self.process_ruler(points)
             elif step["kind"] == "outer":
@@ -1296,23 +1451,31 @@ class WireMeasurementApp:
             elif step["kind"] == "tab":
                 self.process_tab(step["pair"], points)
         except Exception as exc:
+            for name, value in snapshot.items():
+                setattr(self, name, value)
             messagebox.showerror("Measurement Error", str(exc))
             return
 
         self.step_history.append(snapshot)
+        self.accepted_points[self.step_index] = points.copy()
         self.undo_step_button.config(state=tk.NORMAL)
         self.current_points = []
+        self.pending_review = False
+        self.point_drag = None
+        self.accept_button.config(state=tk.DISABLED)
         self.clear_preview_artists()
 
         self.step_index += 1
+        self.update_edit_steps()
 
         if self.step_index >= len(self.steps):
             self.finish_measurement()
             return
 
-        self.update_step_status()
         self.redraw_completed_geometry(show_labels=False)
-        self.canvas.draw_idle()
+        if step["kind"] == "ruler" and self.auto_requested:
+            self.create_auto_proposals()
+        self.prepare_current_step()
 
     def process_ruler(self, points):
         ruler_pixels = distance_pixels(points[0], points[1])
@@ -1433,6 +1596,9 @@ class WireMeasurementApp:
 
     def finish_measurement(self):
         self.step_index = -1
+        self.pending_review = False
+        self.accept_button.config(state=tk.DISABLED)
+        self.manual_step_button.config(state=tk.DISABLED)
         self.undo_button.config(state=tk.NORMAL)
         self.undo_step_button.config(state=tk.NORMAL)
 
@@ -1765,6 +1931,7 @@ class WireMeasurementApp:
                 color="black",
             )[0]
             self.result_artists.append(ruler_line)
+            self.result_artists.extend(self.draw_ruler_ticks(self.ax, self.ruler_points))
 
             ruler_mid = np.mean(self.ruler_points, axis=0)
             self.add_live_annotation(
@@ -2097,6 +2264,7 @@ class WireMeasurementApp:
                 linewidth=1.5,
                 color="black",
             )
+            self.draw_ruler_ticks(image_ax, self.ruler_points)
             report_annotation(
                 "RULER",
                 f"Scale = {self.get_scale_length_mm():.3f} mm",

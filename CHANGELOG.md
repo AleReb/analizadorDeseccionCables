@@ -1,5 +1,23 @@
 # Historial de cambios
 
+## 5.3.0 — 2026-09-24
+
+### Agregado
+
+- Auto Measure: calibración manual seguida de propuestas automáticas para pares verde/amarillo, con procesamiento local mediante OpenCV.
+- Puntos de control arrastrables para la regla, círculos y puente; ajuste visible durante el arrastre.
+- Regla con marcas 0, mitad y longitud total, incluida en la medición manual y el informe exportado.
+- Correct measurement / Edit Selected para corregir un paso aceptado, conservando los puntos posteriores como propuestas y recalculando medidas al confirmar.
+- Pruebas con geometría sintética y ambas fotos suministradas, incluyendo revisión de regla y recálculo.
+
+### Cambiado
+
+- Todos los pasos requieren Accept Step para permitir revisar y corregir los puntos antes del cierre.
+- Redraw Step permite sustituir una propuesta por puntos manuales. Ante una detección fallida se conserva la calibración y continúa el flujo manual.
+- La configuración de pares, puntos y longitud de escala queda fijada al iniciar la sesión para evitar cambios silenciosos de unidades o cantidad de resultados.
+
+La detección es una propuesta revisable, especialmente con reflejos, trazos sobre la foto o cavidades. La marca intermedia de la regla comprueba la distribución visual y no constituye una calibración independiente.
+
 ## 5.2.0 — 2026-09-24
 
 Primera versión registrada en Git, a partir de la aplicación v5.1 suministrada y las modificaciones de esta sesión. No existía historial Git previo.

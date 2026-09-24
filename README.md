@@ -2,11 +2,11 @@
 
 Aplicación de escritorio para medir cortes transversales de cables de dos conductores a partir de fotografías. Permite calibrar una escala, ajustar círculos al aislamiento y al conductor, medir el puente central y exportar un informe con etiquetas y un CSV.
 
-**Versión:** 5.2.0 · **Licencia:** [CERN-OHL-S-2.0](LICENSE) · **Interfaz:** inglés · **Guía:** español.
+**Versión:** 5.3.0 · **Licencia:** [CERN-OHL-S-2.0](LICENSE) · **Interfaz:** inglés · **Guía:** español.
 
 ## Instalación y ejecución
 
-Probado en Windows con Python 3.13.9 y Tkinter. Dependencias verificadas: Matplotlib 3.10.6, NumPy 2.4.2 y Pillow 12.0.0. Se necesita una sesión gráfica de escritorio.
+Probado en Windows con Python 3.13.9 y Tkinter. Dependencias verificadas: Matplotlib 3.10.6, NumPy 2.4.2, Pillow 12.0.0 y OpenCV headless 5.0.0.93. OpenCV se utiliza para detectar contornos; la ventana la proporciona Tkinter. Se necesita una sesión gráfica de escritorio.
 
 Desde PowerShell, dentro de esta carpeta:
 
@@ -23,18 +23,36 @@ El nombre histórico del archivo se conserva; la versión actual aparece en la v
 1. Abrir una fotografía con **Open Image**. Conviene trabajar con la imagen original, enfocada y con una escala conocida en el mismo plano que el corte.
 2. Configurar **Pairs** con la cantidad de pares visibles. Un par tiene dos lóbulos, cada uno con un conductor y su aislamiento. **Circle points** indica cuántos puntos se marcarán en cada círculo; el valor inicial es 8.
 3. En **Ruler length (mm)** ingresar la longitud real del tramo de escala que se marcará. Por ejemplo, para la barra de la referencia corresponde **0.5**, no el valor inicial **1.000**.
-4. Revisar tolerancias en **Edit Requirements** y pulsar **Start / Restart Measurement**. Reiniciar borra la medición anterior. Mantener la cantidad de pares, puntos por círculo y escala sin cambios durante el recorrido; para cambiarlos, reiniciar.
-5. Marcar los dos extremos de la escala. Después, para cada par, seguir la indicación de la barra de estado: contorno exterior del lado 1, conductor del lado 1, contorno exterior del lado 2, conductor del lado 2 y dos extremos del espesor del puente central (**Tab**). Distribuir los puntos alrededor del contorno.
-6. Cada paso se cierra automáticamente al completar la cantidad de puntos. Las etiquetas del par aparecen al terminar su medición y se pueden arrastrar mientras se miden los siguientes pares.
+4. Revisar tolerancias en **Edit Requirements** y pulsar **Start / Restart Measurement** para medir manualmente, o **Auto Measure** para detectar contornos. Ambos inician una medición nueva y borran la anterior. La cantidad de pares, puntos por círculo y longitud real de la regla quedan fijadas para esa sesión; cambiar sus campos solo afecta al siguiente inicio.
+5. Marcar los dos extremos de la escala. Aparecen las marcas **0, mitad y longitud total**. Arrastrar los extremos hasta que coincidan con la regla real y pulsar **Accept Step**. Después, para cada par, seguir la indicación de la barra de estado: contorno exterior del lado 1, conductor del lado 1, contorno exterior del lado 2, conductor del lado 2 y dos extremos del espesor del puente central (**Tab**).
+6. En modo manual, distribuir los puntos alrededor del contorno; en automático, revisar los puntos propuestos. **Arrastrar los puntos de control ajusta el círculo o el segmento de inmediato. Cada paso requiere Accept Step**, incluso al completar los puntos manualmente. Las etiquetas del par aparecen al terminar su medición y se pueden arrastrar mientras se miden los siguientes pares.
 7. Al finalizar, revisar la tabla y guardar con **Save Report** (PNG, JPEG o PDF) o **Export CSV**. **Output name** propone el nombre del archivo; el diálogo permite elegir destino. El informe conserva los desplazamientos de las etiquetas, pero utiliza su propio encuadre, no el zoom de la pantalla.
 
 El CSV incluye configuración, requisitos, resumen, detalles por lóbulo y por par. No hay guardado ni carga de sesiones para continuar una medición en otra ejecución.
+
+## Medición automática con revisión
+
+1. Abrir una foto original de cortes con aislamiento **verde y amarillo**, indicar la cantidad de pares y la longitud conocida de la regla, y pulsar **Auto Measure**.
+2. Marcar y ajustar la regla. Para una longitud total de **1 mm**, la marca intermedia indica **0,5 mm**; para una longitud total de **0,5 mm**, indica **0,25 mm**. Comprobar visualmente su coincidencia con las divisiones de la foto y pulsar **Accept Step**.
+3. El programa busca lóbulos por color, los agrupa según los puentes visibles y propone contornos exteriores, bordes centrales y extremos del puente. Los pares se ordenan aproximadamente de arriba hacia abajo; el lado 1 es el lóbulo izquierdo.
+4. Revisar cada propuesta: los pequeños círculos blancos son controles arrastrables y el círculo discontinuo muestra el ajuste. Pulsar **Accept Step** para guardar el paso y ver el siguiente. **Redraw Step** descarta los puntos de ese paso para marcarlos manualmente y luego continuar con las otras propuestas.
+5. Para corregir una medición aceptada, elegirla en **Correct measurement** y pulsar **Edit Selected**. El paso vuelve a mostrar sus controles. Los puntos ya aceptados de los pasos posteriores se conservan como propuestas que se vuelven a confirmar, recalculando los resultados dependientes. Esto también permite editar la regla después de terminar.
+
+La marca intermedia se calcula a partir de los dos extremos y la longitud ingresada: **es una comprobación visual de coherencia, no una calibración independiente**. No detecta por sí sola una longitud ingresada erróneamente ni corrige perspectiva o distorsión óptica. Para cambiar la longitud real ingresada, reiniciar con el valor correcto.
+
+El detector está preparado para el aislamiento verde/amarillo de las fotos suministradas, entre 1 y 12 pares. No reconoce automáticamente los números ni las divisiones de una regla. Si no puede proponer todos los contornos y puentes, conserva la calibración y permite continuar manualmente. Otros colores, piezas superpuestas, reflejos, el trazo oscuro y cavidades en lugar de metal pueden requerir corrección manual. Una frontera circular visible no identifica el material como cobre.
+
+La detección usa segmentación HSV, contornos y distancias de imagen con [OpenCV](https://docs.opencv.org/4.13.0/d3/dc0/group__imgproc__shape.html). No usa los valores nominales de los requisitos para forzar las medidas. El puente se propone a partir de varias secciones perpendiculares al eje entre lóbulos; revisar sus extremos en la imagen antes de aceptarlo. Todo el procesamiento se realiza localmente.
 
 ## Controles y correcciones
 
 | Control | Acción |
 | --- | --- |
 | Clic izquierdo sobre la imagen | Agregar un punto al paso actual |
+| Arrastrar un punto de control | Ajustar la regla, un contorno o el puente antes de aceptar |
+| **Accept Step** | Confirmar el paso revisado y avanzar |
+| **Redraw Step** | Borrar los puntos del paso actual para volver a marcarlos |
+| **Correct measurement → Edit Selected** | Reabrir una medición aceptada y recalcular sus resultados dependientes |
 | Arrastrar una etiqueta con clic izquierdo | Cambiar su posición sin agregar puntos |
 | **Undo Point**, clic derecho o Retroceso | Borrar el último punto; si el paso no tiene puntos, reabrir el último cierre |
 | **Undo Last Closure** o Ctrl+Z | Reabrir el último paso cerrado, retirar su punto de cierre y permitir corregirlo |
@@ -49,7 +67,7 @@ El CSV incluye configuración, requisitos, resumen, detalles por lóbulo y por p
 
 Los controles de medición propios se utilizan con los modos Pan/Zoom de la barra de Matplotlib desactivados. Utilizar los atajos fuera de los campos de texto.
 
-**Deshacer cierres funciona también después de terminar todos los pares.** Se puede repetir para retroceder varios pasos. Al reabrir un cierre se descartan los puntos en curso del paso siguiente y se conservan las mediciones anteriores al cierre deshecho. El resumen y la exportación se habilitan nuevamente al completar el recorrido. No existe selección para borrar un cierre arbitrario ni función de rehacer.
+**Deshacer cierres funciona también después de terminar todos los pares.** Se puede repetir para retroceder varios pasos. Al reabrir un cierre se descartan los puntos en curso del paso siguiente y se conservan las mediciones anteriores al cierre deshecho. Para ajustar directamente una medición anterior, utilizar **Edit Selected**. El resumen y la exportación se habilitan nuevamente al completar el recorrido. No existe función de rehacer.
 
 ## Fotografía de referencia y análisis
 
@@ -97,7 +115,9 @@ El RMSE expresa en píxeles la dispersión radial de los puntos respecto del cí
 ## Archivos y ejemplos
 
 - `measure_wire_cross_section_v5_1.py`: aplicación, cálculos y exportación.
+- `automatic_measurement.py`: detector local de propuestas para aislamiento verde/amarillo.
 - `test_measurement_interactions.py`: prueba del flujo de tres pares, etiquetas, deshacer y tamaño de vista.
+- `test_automatic_measurement.py`: prueba de detección, controles arrastrables, regla, revisión y recálculo.
 - `requirements.txt`: versiones de dependencias verificadas.
 - `REFERENTE.jpeg`: lámina de referencia analizada arriba.
 - `ECO.png` y `ECO.csv`: informe y datos de ejemplo preexistentes. Son un ejemplo distinto de la tabla de referencia.
@@ -110,9 +130,12 @@ Ejecutar en una sesión gráfica, con el entorno instalado:
 
 ```powershell
 .\.venv\Scripts\python.exe test_measurement_interactions.py
+.\.venv\Scripts\python.exe test_automatic_measurement.py
 ```
 
 La prueba crea una imagen sintética y verifica un recorrido de tres pares, arrastre de etiquetas durante el proceso, conservación de posiciones, reapertura de círculos y del cierre final, retroceso hasta la calibración y ajuste del área de imagen. Comprueba interacciones; no constituye una validación metrológica con una muestra patrón.
+
+La prueba automática compara la geometría detectada con círculos y puentes de dimensiones conocidas en una imagen sintética, rechaza imágenes vacías y comprueba la edición de puntos y el recálculo al cambiar los extremos de la escala. También recorre las dos fotos originales: comprueba que produce propuestas, **no su precisión metrológica**. Las vistas de diagnóstico que escribe en `outputs/` usan una calibración sintética y no son informes de medición válidos.
 
 ## Control de versiones
 
@@ -126,7 +149,7 @@ git diff
 
 Para registrar futuros cambios, revisar primero el diff, actualizar `CHANGELOG.md` y la versión de la aplicación, ejecutar las pruebas y crear un commit. Crear una etiqueta nueva al publicar una versión. Los entornos virtuales, cachés y la carpeta `outputs/` para nuevas exportaciones se excluyen del repositorio. Los ejemplos suministrados sí se conservan en Git.
 
-El repositorio es local. No se ha configurado un remoto ni publicado en GitHub.
+Los comandos anteriores trabajan con el repositorio local. Publicar nuevos commits y etiquetas en un remoto es un paso separado; crear una versión local no los envía automáticamente.
 
 ## Licencia
 
