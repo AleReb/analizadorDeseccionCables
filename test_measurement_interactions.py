@@ -59,11 +59,14 @@ def main():
     assert app.step_index == 0 and app.pixels_per_mm is None and len(app.current_points)==1
     root.deiconify()
     root.update()
-    app.resize_image_area(90)
+    height_before = app.canvas.get_tk_widget().winfo_height()
+    app.toggle_results()
     root.update()
-    assert abs(app.view_panes.sashpos(0) - app.view_panes.winfo_height()*.1) < 5
+    assert app.canvas.get_tk_widget().winfo_height() > height_before
+    app.toggle_results()
+    root.update()
     root.destroy()
-    print('PASS: three-pair workflow, live label dragging and position persistence, undo circles/final closure/calibration, image area slider')
+    print('PASS: three-pair workflow, live label dragging and position persistence, undo circles/final closure/calibration, expanded image viewport')
 
 
 if __name__ == "__main__":

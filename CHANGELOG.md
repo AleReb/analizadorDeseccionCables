@@ -1,5 +1,20 @@
 # Historial de cambios
 
+## 5.4.0 — 2026-09-24
+
+### Corregido
+
+- Restaurado el manejador de tamaño de TkAgg: el dibujo y su superficie de renderizado ahora crecen con el visor, eliminando el rectángulo pequeño fijo dentro del espacio blanco.
+- Al redimensionar la vista se conservan las proporciones de la imagen y, en zoom manual, el centro y la ampliación en pantalla.
+- Arrastre calculado con el desplazamiento del cursor en pantalla, evitando saltos causados por reutilizar coordenadas de imagen que cambian durante el movimiento. Se agrupan repintados y se dibuja la posición final al soltar.
+
+### Agregado
+
+- Deslizador Zoom con porcentaje, sustituyendo Image area.
+- Fit Image, Fill View y Hide Results / Show Results para aprovechar el visor.
+- Desplazamiento vertical de la tabla cuando su panel es pequeño y barra de navegación siempre visible.
+- Pruebas de regresión de redimensionado, ampliación real, proporciones, coordenadas y arrastre.
+
 ## 5.3.1 — 2026-09-24
 
 - Ajustado el cierre de discontinuidades en la máscara de aislamiento para tolerar variaciones pequeñas de decodificación JPEG entre el entorno principal y Spyder.

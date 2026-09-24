@@ -22,7 +22,7 @@ from matplotlib.patches import Circle
 # DEFAULTS
 # ============================================================
 
-__version__ = "5.3.1"
+__version__ = "5.4.0"
 
 DEFAULT_REQUIREMENTS = {
     "Width (mm)": ("none",),
@@ -373,9 +373,16 @@ class WireMeasurementApp:
         self.pan_start_xy = None
         self.pan_start_xlim = None
         self.pan_start_ylim = None
+        self._pan_draw_after_id = None
 
         self.auto_fit_var = tk.BooleanVar(value=False)
         self._resize_after_id = None
+        self._view_size = None
+        self._view_mode = "fit"
+        self.zoom_var = tk.DoubleVar(value=100)
+        self.zoom_text_var = tk.StringVar(value="100%")
+        self.results_visible = True
+        self._table_height = 190
 
         self.scale_length_var = tk.StringVar(value="1.000")
         self.points_per_circle_var = tk.IntVar(value=8)
@@ -512,10 +519,14 @@ class WireMeasurementApp:
         self.manual_step_button = ttk.Button(view_controls, text="Redraw Step",
                                              command=self.redraw_step_manually, state=tk.DISABLED)
         self.manual_step_button.pack(side=tk.LEFT, padx=4)
-        ttk.Label(view_controls, text="Image area:").pack(side=tk.LEFT)
-        self.image_area_var = tk.DoubleVar(value=75)
-        ttk.Scale(view_controls, from_=40, to=95, variable=self.image_area_var,
-                  command=self.resize_image_area).pack(side=tk.LEFT, fill=tk.X, expand=True)
+        ttk.Label(view_controls, text="Zoom:").pack(side=tk.LEFT, padx=(10, 4))
+        ttk.Scale(view_controls, from_=25, to=1600, variable=self.zoom_var,
+                  command=self.set_image_zoom).pack(side=tk.LEFT, fill=tk.X, expand=True)
+        ttk.Label(view_controls, textvariable=self.zoom_text_var, width=7).pack(side=tk.LEFT)
+        ttk.Button(view_controls, text="Fit Image", command=self.fit_image_to_view).pack(side=tk.LEFT, padx=4)
+        ttk.Button(view_controls, text="Fill View", command=self.fill_image_to_view).pack(side=tk.LEFT, padx=4)
+        self.results_toggle = ttk.Button(view_controls, text="Hide Results", command=self.toggle_results)
+        self.results_toggle.pack(side=tk.LEFT, padx=4)
 
         review_controls = ttk.Frame(main)
         review_controls.pack(fill=tk.X, pady=(0, 6))
@@ -530,6 +541,7 @@ class WireMeasurementApp:
         self.view_panes = ttk.Panedwindow(main, orient=tk.VERTICAL)
         self.view_panes.pack(fill=tk.BOTH, expand=True)
         table_frame = ttk.LabelFrame(self.view_panes, text="Dimensional Results")
+        self.table_frame = table_frame
         self.view_panes.add(table_frame, weight=0)
 
         columns = ("dimension", "min", "max", "average", "requirement", "status")
@@ -562,6 +574,9 @@ class WireMeasurementApp:
             self.results_tree.heading(column, text=headings[column])
             self.results_tree.column(column, width=widths[column], anchor=tk.CENTER)
 
+        table_scroll = ttk.Scrollbar(table_frame, orient=tk.VERTICAL, command=self.results_tree.yview)
+        table_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        self.results_tree.configure(yscrollcommand=table_scroll.set)
         self.results_tree.pack(fill=tk.BOTH, expand=True, padx=4, pady=4)
         self._populate_empty_table()
 
@@ -587,12 +602,12 @@ class WireMeasurementApp:
         canvas_frame = ttk.Frame(image_panel)
         canvas_frame.pack(fill=tk.BOTH, expand=True)
 
-        self.figure = Figure(figsize=(10, 7), dpi=100)
+        self.figure = Figure(figsize=(10, 7), dpi=100, facecolor="#20252b")
         self.ax = self.figure.add_subplot(111)
         self.ax.axis("off")
+        self.ax.set_facecolor("#20252b")
 
         self.canvas = FigureCanvasTkAgg(self.figure, master=canvas_frame)
-        self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
         self.toolbar = NavigationToolbar2Tk(
             self.canvas,
@@ -600,19 +615,27 @@ class WireMeasurementApp:
             pack_toolbar=False,
         )
         self.toolbar.update()
-        self.toolbar.pack(fill=tk.X)
+        self.toolbar.pack(side=tk.BOTTOM, fill=tk.X)
+        self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
         self.canvas.mpl_connect("button_press_event", self.on_mouse_click)
         self.canvas.mpl_connect("button_release_event", self.on_mouse_release)
         self.canvas.mpl_connect("scroll_event", self.on_scroll)
         self.canvas.mpl_connect("motion_notify_event", self.on_mouse_move)
 
-        self.canvas.get_tk_widget().bind("<Configure>", self.on_canvas_resize)
+        # Preserve TkAgg's own resize callback: it resizes the renderer and PhotoImage.
+        self.canvas.get_tk_widget().bind("<Configure>", self.on_canvas_resize, add="+")
 
-    def resize_image_area(self, value):
-        height = self.view_panes.winfo_height()
-        if height > 1:
-            self.view_panes.sashpos(0, int(height * (1 - float(value) / 100)))
+    def toggle_results(self):
+        if self.results_visible:
+            self._table_height = self.view_panes.sashpos(0)
+            self.view_panes.forget(self.table_frame)
+            self.results_toggle.config(text="Show Results")
+        else:
+            self.view_panes.insert(0, self.table_frame, weight=0)
+            self.view_panes.sashpos(0, self._table_height)
+            self.results_toggle.config(text="Hide Results")
+        self.results_visible = not self.results_visible
 
     def _bind_shortcuts(self):
         self.root.bind("<Control-z>", lambda event: self.undo_last_closure())
@@ -1004,6 +1027,7 @@ class WireMeasurementApp:
             self.canvas.draw_idle()
 
     def reset_measurement_state(self, keep_image=False):
+        self.cancel_pan_redraw()
         self.step_history = []
         self.label_drag = None
         self.point_drag = None
@@ -1247,8 +1271,9 @@ class WireMeasurementApp:
                 return
 
             self.auto_fit_var.set(False)
+            self._view_mode = "manual"
             self.is_panning = True
-            self.pan_start_xy = (event.xdata, event.ydata)
+            self.pan_start_xy = (event.x, event.y)
             self.pan_start_xlim = self.ax.get_xlim()
             self.pan_start_ylim = self.ax.get_ylim()
             return
@@ -1284,6 +1309,22 @@ class WireMeasurementApp:
             self.pan_start_xy = None
             self.pan_start_xlim = None
             self.pan_start_ylim = None
+            self.cancel_pan_redraw()
+            self.canvas.draw_idle()
+
+    def cancel_pan_redraw(self):
+        if self._pan_draw_after_id is not None:
+            self.root.after_cancel(self._pan_draw_after_id)
+            self._pan_draw_after_id = None
+
+    def schedule_pan_redraw(self):
+        # One pending frame, using the latest limits rather than a queue of old motions.
+        if self._pan_draw_after_id is None:
+            self._pan_draw_after_id = self.root.after(16, self.draw_pan_frame)
+
+    def draw_pan_frame(self):
+        self._pan_draw_after_id = None
+        self.canvas.draw_idle()
 
     def undo_last_closure(self):
         if not self.step_history:
@@ -1323,6 +1364,7 @@ class WireMeasurementApp:
             return
 
         self.auto_fit_var.set(False)
+        self._view_mode = "manual"
 
         if event.xdata is None or event.ydata is None:
             return
@@ -1358,6 +1400,7 @@ class WireMeasurementApp:
             ]
         )
 
+        self.sync_zoom_display()
         self.canvas.draw_idle()
 
     def on_mouse_move(self, event):
@@ -1384,15 +1427,14 @@ class WireMeasurementApp:
 
         if self.is_panning and self.pan_start_xy is not None:
             start_x, start_y = self.pan_start_xy
-            delta_x = event.xdata - start_x
-            delta_y = event.ydata - start_y
-
             x0, x1 = self.pan_start_xlim
             y0, y1 = self.pan_start_ylim
+            delta_x = (event.x-start_x) * (x1-x0) / self.ax.bbox.width
+            delta_y = (event.y-start_y) * (y1-y0) / self.ax.bbox.height
 
             self.ax.set_xlim(x0 - delta_x, x1 - delta_x)
             self.ax.set_ylim(y0 - delta_y, y1 - delta_y)
-            self.canvas.draw_idle()
+            self.schedule_pan_redraw()
             return
 
         if self.step_index >= 0 and not self.pending_review:
@@ -1404,21 +1446,24 @@ class WireMeasurementApp:
             )
 
     def on_canvas_resize(self, event):
+        if event.width <= 1 or event.height <= 1:
+            return
+        previous_size = self._view_size
+        self._view_size = (event.width, event.height)
         if self.image_array is None:
             return
-
-        if self._resize_after_id is not None:
-            try:
-                self.root.after_cancel(self._resize_after_id)
-            except Exception:
-                pass
-
-        if self.auto_fit_var.get():
-            self._resize_after_id = self.root.after(
-                120,
-                self.fit_image_to_view,
-            )
+        if self.auto_fit_var.get() or self._view_mode == "fit" or previous_size is None:
+            self.fit_image_to_view()
+        elif self._view_mode == "fill":
+            self.fill_image_to_view()
         else:
+            # Keep the zoom and center; give newly available screen space to the viewport.
+            x0, x1 = self.ax.get_xlim()
+            y0, y1 = self.ax.get_ylim()
+            units_per_pixel = (x1-x0) / previous_size[0]
+            self.set_view_center((x0+x1)/2, (y0+y1)/2,
+                                 units_per_pixel*event.width, units_per_pixel*event.height)
+            self.sync_zoom_display()
             self.canvas.draw_idle()
 
     # --------------------------------------------------------
@@ -1731,40 +1776,69 @@ class WireMeasurementApp:
             aspect="equal",
         )
         self.ax.axis("off")
+        self.ax.set_facecolor("#20252b")
         self.ax.set_position([0.005, 0.005, 0.99, 0.99])
         self.fit_image_to_view()
 
-    def fit_image_to_view(self):
+    def viewport_size(self):
+        widget = self.canvas.get_tk_widget()
+        width, height = widget.winfo_width(), widget.winfo_height()
+        if width <= 1 or height <= 1:
+            width, height = self.canvas.get_width_height(physical=True)
+        return max(width, 2), max(height, 2)
+
+    def fitted_view_size(self, fill=False):
+        image_height, image_width = self.image_array.shape[:2]
+        width, height = self.viewport_size()
+        ratios = (image_width/width, image_height/height)
+        units_per_pixel = min(ratios) if fill else max(ratios)
+        return units_per_pixel*width, units_per_pixel*height
+
+    def set_view_center(self, x, y, width, height):
+        self.ax.set_xlim(x-width/2, x+width/2)
+        self.ax.set_ylim(y+height/2, y-height/2)
+        self.ax.set_position([0.005, 0.005, 0.99, 0.99])
+        self.ax.set_aspect("equal", adjustable="box")
+
+    def sync_zoom_display(self):
         if self.image_array is None:
             return
+        fit_width, _ = self.fitted_view_size()
+        x0, x1 = self.ax.get_xlim()
+        zoom = 100*fit_width/abs(x1-x0)
+        self.zoom_var.set(zoom)
+        self.zoom_text_var.set(f"{zoom:.0f}%")
 
+    def set_image_zoom(self, value):
+        if self.image_array is None:
+            return
+        zoom = max(25., min(1600., float(value)))
+        width, height = self.fitted_view_size()
+        x0, x1 = self.ax.get_xlim()
+        y0, y1 = self.ax.get_ylim()
+        self.auto_fit_var.set(False)
+        self._view_mode = "manual"
+        self._view_size = self.viewport_size()
+        self.set_view_center((x0+x1)/2, (y0+y1)/2, width*100/zoom, height*100/zoom)
+        self.sync_zoom_display()
+        self.canvas.draw_idle()
+
+    def fit_image_to_view(self):
+        self.frame_image(fill=False)
+
+    def fill_image_to_view(self):
+        self.auto_fit_var.set(False)
+        self.frame_image(fill=True)
+
+    def frame_image(self, fill=False):
+        if self.image_array is None:
+            return
         image_height, image_width = self.image_array.shape[:2]
-
-        widget = self.canvas.get_tk_widget()
-        canvas_width = max(widget.winfo_width(), 2)
-        canvas_height = max(widget.winfo_height(), 2)
-
-        image_aspect = image_width / image_height
-        canvas_aspect = canvas_width / canvas_height
-
-        center_x = (image_width - 1) / 2.0
-        center_y = (image_height - 1) / 2.0
-
-        if canvas_aspect >= image_aspect:
-            visible_height = image_height
-            visible_width = visible_height * canvas_aspect
-        else:
-            visible_width = image_width
-            visible_height = visible_width / canvas_aspect
-
-        x_min = center_x - visible_width / 2.0
-        x_max = center_x + visible_width / 2.0
-        y_min = center_y - visible_height / 2.0
-        y_max = center_y + visible_height / 2.0
-
-        self.ax.set_xlim(x_min, x_max)
-        self.ax.set_ylim(y_max, y_min)
-        self.ax.set_aspect("equal", adjustable="box")
+        width, height = self.fitted_view_size(fill=fill)
+        self._view_mode = "fill" if fill else "fit"
+        self._view_size = self.viewport_size()
+        self.set_view_center((image_width-1)/2, (image_height-1)/2, width, height)
+        self.sync_zoom_display()
         self.canvas.draw_idle()
 
     def clear_preview_artists(self):
@@ -1920,6 +1994,7 @@ class WireMeasurementApp:
             aspect="equal",
         )
         self.ax.axis("off")
+        self.ax.set_facecolor("#20252b")
         self.ax.set_position([0.005, 0.005, 0.99, 0.99])
 
 

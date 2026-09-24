@@ -2,7 +2,7 @@
 
 Aplicación de escritorio para medir cortes transversales de cables de dos conductores a partir de fotografías. Permite calibrar una escala, ajustar círculos al aislamiento y al conductor, medir el puente central y exportar un informe con etiquetas y un CSV.
 
-**Versión:** 5.3.1 · **Licencia:** [CERN-OHL-S-2.0](LICENSE) · **Interfaz:** inglés · **Guía:** español.
+**Versión:** 5.4.0 · **Licencia:** [CERN-OHL-S-2.0](LICENSE) · **Interfaz:** inglés · **Guía:** español.
 
 ## Instalación y ejecución
 
@@ -61,6 +61,10 @@ La detección usa segmentación HSV, contornos y distancias de imagen con [OpenC
 
 ## Controles y correcciones
 
+El visor ocupa el espacio disponible y se redimensiona junto con la ventana. **Zoom** cambia la ampliación de la imagen; **100%** significa imagen completa ajustada al visor. **Fit Image** muestra la foto completa, conservando su proporción; las fotos verticales pueden dejar márgenes laterales. **Fill View** llena el visor conservando la proporción y recortando lo que no cabe. Para trabajar con más altura, usar **Hide Results** y recuperar la tabla con **Show Results**. El separador entre tabla e imagen sigue siendo ajustable.
+
+Para desplazar la imagen ampliada, mantener el botón central del mouse o **Shift + botón izquierdo** y arrastrar. El movimiento sigue el desplazamiento del cursor en pantalla; los eventos rápidos se agrupan para dibujar la posición más reciente. Cambiar el zoom o desplazar la vista no modifica los puntos medidos ni la escala de calibración.
+
 | Control | Acción |
 | --- | --- |
 | Clic izquierdo sobre la imagen | Agregar un punto al paso actual |
@@ -73,8 +77,10 @@ La detección usa segmentación HSV, contornos y distancias de imagen con [OpenC
 | **Undo Last Closure** o Ctrl+Z | Reabrir el último paso cerrado, retirar su punto de cierre y permitir corregirlo |
 | Rueda del mouse | Acercar o alejar alrededor del cursor |
 | Botón central o Shift + arrastre izquierdo | Desplazar la vista |
-| **Fit to Window** o F | Ajustar la imagen completa a la vista |
-| **Image area** | Dar más o menos altura a la imagen respecto de la tabla |
+| **Fit Image**, **Fit to Window** o F | Ajustar la imagen completa a la vista |
+| **Zoom** | Ampliar/reducir la imagen alrededor del centro actual de la vista |
+| **Fill View** | Llenar el visor sin deformar la imagen, recortando los bordes que no caben |
+| **Hide Results / Show Results** | Ocultar/recuperar la tabla para dar más altura al visor |
 | Separador entre tabla e imagen | Ajustar manualmente la distribución del espacio |
 | **Auto Fit on Resize** | Reencuadrar automáticamente al cambiar el tamaño de la vista |
 | Ctrl+O / Ctrl+S | Abrir imagen / guardar informe |
@@ -133,6 +139,7 @@ El RMSE expresa en píxeles la dispersión radial de los puntos respecto del cí
 - `automatic_measurement.py`: detector local de propuestas para aislamiento verde/amarillo.
 - `test_measurement_interactions.py`: prueba del flujo de tres pares, etiquetas, deshacer y tamaño de vista.
 - `test_automatic_measurement.py`: prueba de detección, controles arrastrables, regla, revisión y recálculo.
+- `test_image_viewport.py`: prueba del tamaño real del visor, zoom, proporciones, coordenadas del mouse y arrastre.
 - `requirements.txt`: versiones de dependencias verificadas.
 - `REFERENTE.jpeg`: lámina de referencia analizada arriba.
 - `ECO.png` y `ECO.csv`: informe y datos de ejemplo preexistentes. Son un ejemplo distinto de la tabla de referencia.
@@ -146,11 +153,14 @@ Ejecutar en una sesión gráfica, con el entorno instalado:
 ```powershell
 .\.venv\Scripts\python.exe test_measurement_interactions.py
 .\.venv\Scripts\python.exe test_automatic_measurement.py
+.\.venv\Scripts\python.exe test_image_viewport.py
 ```
 
 La prueba crea una imagen sintética y verifica un recorrido de tres pares, arrastre de etiquetas durante el proceso, conservación de posiciones, reapertura de círculos y del cierre final, retroceso hasta la calibración y ajuste del área de imagen. Comprueba interacciones; no constituye una validación metrológica con una muestra patrón.
 
 La prueba automática compara la geometría detectada con círculos y puentes de dimensiones conocidas en una imagen sintética, rechaza imágenes vacías y comprueba la edición de puntos y el recálculo al cambiar los extremos de la escala. También recorre las dos fotos originales: comprueba que produce propuestas, **no su precisión metrológica**. Las vistas de diagnóstico que escribe en `outputs/` usan una calibración sintética y no son informes de medición válidos.
+
+La prueba del visor cambia el tamaño real de la ventana y de sus paneles, comprueba que el dibujo ocupa el lienzo completo y que los círculos mantienen su proporción. Verifica también que el zoom amplía realmente la imagen, que la rueda conserva el punto bajo el cursor y que el arrastre utiliza el último movimiento sin acumular repintados pendientes.
 
 ## Control de versiones
 
