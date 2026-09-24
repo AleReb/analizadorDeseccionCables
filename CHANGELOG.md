@@ -1,5 +1,11 @@
 # Historial de cambios
 
+## Empaquetado de 5.4.1 — 2026-09-24
+
+- Constructor de ejecutable Windows y aplicación macOS con PyInstaller, entorno de compilación separado y prueba del binario generado.
+- Paquetes ZIP con fuentes, licencia, documentación y avisos de dependencias.
+- Flujo de GitHub Actions para Windows, macOS Apple Silicon y macOS Intel. La compilación de Mac debe ejecutarse en macOS.
+
 ## 5.4.1 — 2026-09-24
 
 - Barra espaciadora para Accept Step cuando el visor tiene el foco y el paso está completo.

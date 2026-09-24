@@ -6,6 +6,32 @@ Aplicación de escritorio para medir cortes transversales de cables de dos condu
 
 ## Instalación y ejecución
 
+### Paquetes de escritorio
+
+Los paquetes se generan en `dist/`. En Windows, extraer el ZIP y abrir `AnalizadorCables.exe`; no necesita Python ni Spyder. En macOS, el paquete contiene `AnalizadorCables.app`, que se puede copiar a Aplicaciones. Los binarios de Mac se construyen por separado para Apple Silicon e Intel. Los paquetes no están firmados con certificados comerciales ni notarizados por Apple; macOS puede requerir autorización de apertura en Privacidad y seguridad.
+
+Para construir Windows desde Windows:
+
+```powershell
+python -m venv .venv-build
+.\.venv-build\Scripts\python.exe -m pip install -r requirements-build.txt
+.\.venv-build\Scripts\python.exe build_release.py
+```
+
+Para construir macOS desde un Mac con Python 3.13 y Tkinter:
+
+```bash
+python3 -m venv .venv-build
+.venv-build/bin/python -m pip install -r requirements-build.txt
+.venv-build/bin/python build_release.py
+```
+
+La compilación ejecuta una prueba del binario empaquetado: crea la interfaz, detecta una muestra sintética, completa mediciones y exporta PNG/PDF. Solo genera el ZIP final si esa prueba pasa. Se incluyen código fuente, documentación, licencia y avisos de dependencias. Los archivos temporales quedan en `build/`; un paquete existente no se sobrescribe.
+
+También se incluye `.github/workflows/build-desktop.yml`: desde GitHub Actions, ejecutar **Build desktop packages** para construir Windows, macOS Apple Silicon y macOS Intel y descargar sus artefactos ZIP. Se activa además al enviar etiquetas `v*`. No publica una release ni envía archivos a terceros por sí solo. La compilación de macOS necesita un ejecutor Mac; no se realiza desde Windows. El flujo debe subirse al remoto antes de poder ejecutarlo allí.
+
+### Ejecución desde Python
+
 Probado en Windows con Python 3.13.9 y Tkinter. Dependencias verificadas: Matplotlib 3.10.6, NumPy 2.4.2, Pillow 12.0.0 y OpenCV headless 5.0.0.93. OpenCV se utiliza para detectar contornos; la ventana la proporciona Tkinter. Se necesita una sesión gráfica de escritorio.
 
 Desde PowerShell, dentro de esta carpeta:
