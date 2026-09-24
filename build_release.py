@@ -30,6 +30,7 @@ def main():
         '--name', NAME, '--distpath', str(ROOT / 'build' / 'bundles'),
         '--workpath', str(ROOT / 'build' / 'pyinstaller'),
         '--specpath', str(ROOT / 'build'), '--hidden-import', 'automatic_measurement',
+        '--hidden-import', 'matplotlib.backends.backend_pdf',
         '--osx-bundle-identifier', 'org.analizadorcables.desktop',
         str(ROOT / 'launcher.py'),
     ], cwd=ROOT, check=True)

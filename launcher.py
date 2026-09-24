@@ -48,7 +48,12 @@ def smoke_test(destination):
 
 if __name__ == '__main__':
     if len(sys.argv) == 3 and sys.argv[1] == '--smoke-test':
-        smoke_test(sys.argv[2])
+        try:
+            smoke_test(sys.argv[2])
+        except Exception:
+            import traceback
+            Path(sys.argv[2]).with_suffix('.error.txt').write_text(traceback.format_exc(), encoding='utf-8')
+            sys.exit(1)
     else:
         from measure_wire_cross_section_v5_1 import main
         main()
