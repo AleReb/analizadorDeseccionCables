@@ -22,7 +22,7 @@ from matplotlib.patches import Circle
 # DEFAULTS
 # ============================================================
 
-__version__ = "5.4.0"
+__version__ = "5.4.1"
 
 DEFAULT_REQUIREMENTS = {
     "Width (mm)": ("none",),
@@ -513,7 +513,7 @@ class WireMeasurementApp:
         self.auto_button = ttk.Button(view_controls, text="Auto Measure",
                                       command=self.start_automatic_measurement)
         self.auto_button.pack(side=tk.LEFT, padx=4)
-        self.accept_button = ttk.Button(view_controls, text="Accept Step",
+        self.accept_button = ttk.Button(view_controls, text="Accept Step (Space)",
                                         command=self.complete_current_step, state=tk.DISABLED)
         self.accept_button.pack(side=tk.LEFT, padx=4)
         self.manual_step_button = ttk.Button(view_controls, text="Redraw Step",
@@ -638,13 +638,38 @@ class WireMeasurementApp:
         self.results_visible = not self.results_visible
 
     def _bind_shortcuts(self):
-        self.root.bind("<Control-z>", lambda event: self.undo_last_closure())
-        self.root.bind("<Control-o>", lambda event: self.open_image())
-        self.root.bind("<Control-s>", lambda event: self.save_report())
-        self.root.bind("<BackSpace>", lambda event: self.undo_point())
-        self.root.bind("<Escape>", lambda event: self.cancel_measurement())
-        self.root.bind("<f>", lambda event: self.fit_image_to_view())
-        self.root.bind("<F>", lambda event: self.fit_image_to_view())
+        shortcuts = {
+            "<Control-z>": self.undo_last_closure,
+            "<Control-o>": self.open_image,
+            "<Control-s>": self.save_report,
+            "<BackSpace>": self.undo_point,
+            "<Escape>": self.cancel_measurement,
+            "<f>": self.fit_image_to_view,
+            "<F>": self.fit_image_to_view,
+            "<space>": self.accept_step_shortcut,
+        }
+        for sequence, action in shortcuts.items():
+            self.root.bind(sequence, lambda event, action=action: self.run_shortcut(event, action))
+
+    def run_shortcut(self, event, action):
+        # Entry/Text class bindings run before the toplevel binding. Never also
+        # interpret their editing keystrokes as measurement commands.
+        if event.widget.winfo_toplevel() != self.root:
+            return
+        if event.widget.winfo_class() in {
+            "Entry", "TEntry", "Spinbox", "TSpinbox", "Text", "TCombobox",
+        }:
+            return
+        if event.keysym == "space" and event.widget.winfo_class() in {
+            "Button", "TButton", "Checkbutton", "TCheckbutton", "Radiobutton", "TRadiobutton",
+        }:
+            return  # Preserve native keyboard activation; don't accept twice.
+        action()
+        return "break"
+
+    def accept_step_shortcut(self):
+        if self.pending_review and self.point_drag is None and self.label_drag is None:
+            self.complete_current_step()
 
     def _populate_empty_table(self):
         for item in self.results_tree.get_children():
@@ -1241,6 +1266,7 @@ class WireMeasurementApp:
         self.update_step_status()
 
     def on_mouse_click(self, event):
+        self.canvas.get_tk_widget().focus_set()
         if getattr(self.toolbar, "mode", ""):
             return
 

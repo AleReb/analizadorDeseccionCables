@@ -2,7 +2,7 @@
 
 Aplicación de escritorio para medir cortes transversales de cables de dos conductores a partir de fotografías. Permite calibrar una escala, ajustar círculos al aislamiento y al conductor, medir el puente central y exportar un informe con etiquetas y un CSV.
 
-**Versión:** 5.4.0 · **Licencia:** [CERN-OHL-S-2.0](LICENSE) · **Interfaz:** inglés · **Guía:** español.
+**Versión:** 5.4.1 · **Licencia:** [CERN-OHL-S-2.0](LICENSE) · **Interfaz:** inglés · **Guía:** español.
 
 ## Instalación y ejecución
 
@@ -69,7 +69,7 @@ Para desplazar la imagen ampliada, mantener el botón central del mouse o **Shif
 | --- | --- |
 | Clic izquierdo sobre la imagen | Agregar un punto al paso actual |
 | Arrastrar un punto de control | Ajustar la regla, un contorno o el puente antes de aceptar |
-| **Accept Step** | Confirmar el paso revisado y avanzar |
+| **Accept Step** o barra espaciadora en el visor | Confirmar el paso revisado y avanzar |
 | **Redraw Step** | Borrar los puntos del paso actual para volver a marcarlos |
 | **Correct measurement → Edit Selected** | Reabrir una medición aceptada y recalcular sus resultados dependientes |
 | Arrastrar una etiqueta con clic izquierdo | Cambiar su posición sin agregar puntos |
@@ -86,7 +86,7 @@ Para desplazar la imagen ampliada, mantener el botón central del mouse o **Shif
 | Ctrl+O / Ctrl+S | Abrir imagen / guardar informe |
 | Escape | Cancelar la toma de puntos activa |
 
-Los controles de medición propios se utilizan con los modos Pan/Zoom de la barra de Matplotlib desactivados. Utilizar los atajos fuera de los campos de texto.
+Los controles de medición propios se utilizan con los modos Pan/Zoom de la barra de Matplotlib desactivados. Los atajos de medición se desactivan mientras se escribe en campos de texto, selectores y campos numéricos: Espacio escribe un espacio y Retroceso borra texto sin deshacer mediciones. Hacer clic en el visor devuelve el foco a la imagen. La barra espaciadora acepta únicamente un paso completo pendiente de revisión; los botones con foco conservan su activación habitual por teclado.
 
 **Deshacer cierres funciona también después de terminar todos los pares.** Se puede repetir para retroceder varios pasos. Al reabrir un cierre se descartan los puntos en curso del paso siguiente y se conservan las mediciones anteriores al cierre deshecho. Para ajustar directamente una medición anterior, utilizar **Edit Selected**. El resumen y la exportación se habilitan nuevamente al completar el recorrido. No existe función de rehacer.
 

@@ -1,5 +1,12 @@
 # Historial de cambios
 
+## 5.4.1 — 2026-09-24
+
+- Barra espaciadora para Accept Step cuando el visor tiene el foco y el paso está completo.
+- Los atajos de medición ya no se ejecutan al editar el nombre de salida ni otros campos de texto o numéricos. Retroceso y Ctrl+Z en esos campos no deshacen mediciones.
+- Clic en el visor recupera el foco del teclado; se conserva la activación nativa de los botones.
+- Prueba de eventos de teclado reales para edición de nombre, conservación de calibración y aceptación por Espacio.
+
 ## 5.4.0 — 2026-09-24
 
 ### Corregido
