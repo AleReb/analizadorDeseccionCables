@@ -214,7 +214,8 @@ def detect_pairs(image, pair_count):
     if factor < 1:
         rgb = cv2.resize(rgb, None, fx=factor, fy=factor, interpolation=cv2.INTER_AREA)
     hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
-    kernel_size = max(5, int(min(rgb.shape[:2])*.018) | 1)
+    # Close thin annotation strokes robustly across small JPEG decoder differences.
+    kernel_size = max(5, int(min(rgb.shape[:2])*.022) | 1)
     green_raw, green = color_mask(hsv, (35, 60, 40), (95, 255, 255), kernel_size)
     yellow_raw, yellow = color_mask(hsv, (17, 90, 60), (35, 255, 255), kernel_size)
     greens = outer_circles(green, pair_count)

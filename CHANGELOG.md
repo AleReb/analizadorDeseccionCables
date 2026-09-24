@@ -1,5 +1,10 @@
 # Historial de cambios
 
+## 5.3.1 — 2026-09-24
+
+- Ajustado el cierre de discontinuidades en la máscara de aislamiento para tolerar variaciones pequeñas de decodificación JPEG entre el entorno principal y Spyder.
+- Verificada la detección en el intérprete Python 3.12 de Spyder, además del entorno principal Python 3.13.
+
 ## 5.3.0 — 2026-09-24
 
 ### Agregado

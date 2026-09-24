@@ -2,7 +2,7 @@
 
 Aplicación de escritorio para medir cortes transversales de cables de dos conductores a partir de fotografías. Permite calibrar una escala, ajustar círculos al aislamiento y al conductor, medir el puente central y exportar un informe con etiquetas y un CSV.
 
-**Versión:** 5.3.0 · **Licencia:** [CERN-OHL-S-2.0](LICENSE) · **Interfaz:** inglés · **Guía:** español.
+**Versión:** 5.3.1 · **Licencia:** [CERN-OHL-S-2.0](LICENSE) · **Interfaz:** inglés · **Guía:** español.
 
 ## Instalación y ejecución
 
@@ -17,6 +17,21 @@ python -m venv .venv
 ```
 
 El nombre histórico del archivo se conserva; la versión actual aparece en la ventana. Tkinter forma parte de la instalación habitual de Python para Windows; si falta, agregar el componente Tcl/Tk desde el instalador de Python.
+
+### Uso desde Spyder
+
+Spyder puede usar un intérprete distinto del Python disponible en PowerShell. Para identificarlo, ejecutar `import sys; print(sys.executable)` en su consola. La dependencia del proyecto es `opencv-python-headless`, que se importa como `cv2`.
+
+Si ese entorno informa `No module named pip`, puede habilitarse pip y luego instalar OpenCV en ese mismo intérprete desde la consola de Spyder:
+
+```python
+import sys
+import subprocess
+subprocess.check_call([sys.executable, "-m", "ensurepip", "--upgrade"])
+subprocess.check_call([sys.executable, "-m", "pip", "install", "opencv-python-headless==5.0.0.93"])
+```
+
+Reiniciar el kernel después de instalar y comprobar `import cv2; print(cv2.__version__)`. La versión 5.3.1 también se verificó en el entorno de Spyder con Python 3.12.11, NumPy 2.4.2, Matplotlib 3.10.8 y Pillow 12.1.1. Las pruebas de detección pasaron en ambos entornos.
 
 ## Uso paso a paso
 

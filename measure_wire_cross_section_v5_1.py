@@ -22,7 +22,7 @@ from matplotlib.patches import Circle
 # DEFAULTS
 # ============================================================
 
-__version__ = "5.3.0"
+__version__ = "5.3.1"
 
 DEFAULT_REQUIREMENTS = {
     "Width (mm)": ("none",),
