@@ -1,5 +1,12 @@
 # Historial de cambios
 
+## Web 1.0 — 2026-09-25
+
+- Interfaz adaptable en español para GitHub Pages, conservando la aplicación de escritorio.
+- Calibración, círculos por mínimos cuadrados, puentes, revisión de puntos y pasos, tolerancias y exportación CSV/PNG e impresión PDF.
+- Detector original compartido mediante Pyodide, NumPy y OpenCV en un Web Worker; las imágenes permanecen en el navegador.
+- Ejemplo sintético integrado, pruebas de geometría y publicación automatizada con GitHub Actions.
+
 ## Empaquetado de 5.4.1 — 2026-09-24
 
 - Constructor de ejecutable Windows y aplicación macOS con PyInstaller, entorno de compilación separado y prueba del binario generado.

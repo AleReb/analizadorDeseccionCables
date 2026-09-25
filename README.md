@@ -6,6 +6,33 @@ Aplicación de escritorio para medir cortes transversales de cables de dos condu
 
 ## Instalación y ejecución
 
+### Versión web · GitHub Pages
+
+**Abrir:** https://alereb.github.io/analizadorDeseccionCables/
+
+La interfaz web está en español y funciona sin instalar Python. Incluye carga de imágenes locales, ejemplo sintético, calibración explícita, medición manual de 1–12 pares, puntos arrastrables, zoom y desplazamiento, corrección de pasos, tolerancias editables, tabla de resultados y exportación CSV/PNG. Para PDF, usar **Imprimir / PDF** y guardar como PDF desde el navegador.
+
+La detección automática ejecuta el mismo `automatic_measurement.py` del escritorio en un Web Worker con [Pyodide 0.28.1](https://pyodide.org/en/0.28.1/usage/packages-in-pyodide.html), NumPy y OpenCV. La primera detección descarga el motor desde jsDelivr y puede tardar varios minutos; las fotografías se procesan localmente y no se envían a un servidor. Las fuentes se descargan desde Google Fonts. Si falla la carga o detección, se conserva la regla para continuar manualmente. Las propuestas automáticas utilizan ocho puntos por círculo y siempre requieren aceptación.
+
+1. Abrir una imagen o el ejemplo sintético.
+2. Indicar pares, puntos por círculo y longitud real de regla; iniciar modo manual o automático.
+3. Marcar los dos extremos de la regla, revisarlos y aceptar.
+4. Marcar o revisar aislamiento y conductor de ambos lados y el puente de cada par; aceptar cada paso.
+5. Revisar resultados y descargar el informe. Los cambios de configuración se aplican al reiniciar. Corregir un paso obliga a confirmar de nuevo los posteriores, conservando sus puntos.
+
+Las dimensiones mantienen las fórmulas del escritorio; no son una validación metrológica. Esta versión no incorpora el arrastre de etiquetas del escritorio ni exportación JPEG. Recargar o cerrar la pestaña descarta la sesión.
+
+Para ejecutar localmente:
+
+```powershell
+python build_web.py
+python -m http.server 8765 --directory build/web
+# Abrir http://localhost:8765
+node --test tests/web.test.mjs
+```
+
+`build_web.py` reúne la interfaz, el detector original y la licencia en `build/web/`. El flujo `.github/workflows/deploy-web.yml` prueba la geometría y publica esa carpeta en Pages al actualizar `main`. La fuente de Pages debe estar configurada como **GitHub Actions**, según la [documentación de GitHub](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages).
+
 ### Paquetes de escritorio
 
 Los paquetes se generan en `dist/`. En Windows, extraer el ZIP y abrir `AnalizadorCables.exe`; no necesita Python ni Spyder. En macOS, el paquete contiene `AnalizadorCables.app`, que se puede copiar a Aplicaciones. Los binarios de Mac se construyen por separado para Apple Silicon e Intel. Los paquetes no están firmados con certificados comerciales ni notarizados por Apple; macOS puede requerir autorización de apertura en Privacidad y seguridad.
