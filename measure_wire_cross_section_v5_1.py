@@ -22,7 +22,7 @@ from matplotlib.patches import Circle
 # DEFAULTS
 # ============================================================
 
-__version__ = "5.4.1"
+__version__ = "5.4.2"
 
 DEFAULT_REQUIREMENTS = {
     "Width (mm)": ("none",),
@@ -74,6 +74,34 @@ def distance_pixels(point_a, point_b):
 
 def distance_mm(point_a, point_b, pixels_per_mm):
     return distance_pixels(point_a, point_b) / pixels_per_mm
+
+
+def tab_axis_geometry(center_a, center_b, points):
+    """Orientation relative to copper centers, independent of image rotation.
+
+    The acute angle treats both axes as undirected lines. No points are moved
+    and the measured endpoint distance is never projected or corrected.
+    """
+    centers = np.asarray([center_a, center_b], dtype=float)
+    axis = centers[1] - centers[0]
+    spacing = float(np.linalg.norm(axis))
+    if not np.all(np.isfinite(centers)) or spacing <= 1e-12:
+        raise ValueError("Copper centers coincide: perpendicular reference unavailable.")
+    axis /= spacing
+    points = np.asarray(points, dtype=float).reshape(-1, 2)
+    if not np.all(np.isfinite(points)):
+        raise ValueError("Tab points must be finite.")
+    anchor = points[0] if len(points) else centers.mean(axis=0)
+    normal = np.array([-axis[1], axis[0]])
+    angle = direction = None
+    if len(points) >= 2:
+        vector = points[1] - points[0]
+        length = np.linalg.norm(vector)
+        if length > 1e-12:
+            direction = vector / length
+            angle = float(np.degrees(np.arccos(np.clip(abs(np.dot(axis, direction)), 0., 1.))))
+    return dict(centers=centers, axis=axis, normal=normal, spacing=spacing,
+                anchor=anchor, direction=direction, angle=angle)
 
 
 def minimum_thickness_mm(
@@ -1194,7 +1222,66 @@ class WireMeasurementApp:
                 circle = Circle(center, radius, fill=False, ec="#006b7a", ls="--", lw=1.5)
                 self.ax.add_patch(circle)
                 self.preview_artists.append(circle)
+        if step["kind"] == "tab":
+            self.preview_artists.extend(self.draw_tab_angle_guide(step["pair"]))
         self.canvas.draw_idle()
+
+    def draw_tab_angle_guide(self, pair_index):
+        """Live construction guides; all artists belong to the current preview."""
+        a, b = self.lobes[2*pair_index:2*pair_index+2]
+        if not a or not b or "conductor_center" not in a or "conductor_center" not in b:
+            return []
+        try:
+            g = tab_axis_geometry(a["conductor_center"], b["conductor_center"],
+                                  self.current_points)
+        except ValueError as exc:
+            return [self.ax.text(.02, .97, str(exc), transform=self.ax.transAxes,
+                                 va="top", color="#a34c00", fontsize=9,
+                                 bbox=dict(fc="white", ec="none", alpha=.9))]
+        artists = []
+        center, axis, normal = g["anchor"], g["axis"], g["normal"]
+        size = g["spacing"] * .38
+
+        def line(points, **kwargs):
+            points = np.asarray(points)
+            artists.extend(self.ax.plot(points[:, 0], points[:, 1], **kwargs))
+
+        line(g["centers"], color="#7755b4", ls="--", lw=1.4, marker="+", ms=10, zorder=7)
+        line([center-size*normal, center+size*normal],
+             color="#008d87", ls=":", lw=1.6, zorder=7)
+        # A parallel through the first endpoint makes the angle readable even
+        # when that endpoint is away from the center-to-center line.
+        line([center-size*.65*axis, center+size*.65*axis],
+             color="#7755b4", ls=":", lw=1, zorder=7)
+        angle = g["angle"]
+        if angle is None:
+            text = "Copper-center axis (purple) | 90° guide (teal)\nMark two distinct tab endpoints."
+            color = "#285f64"
+        else:
+            deviation = 90. - angle
+            perpendicular = deviation <= 1e-6
+            color = "#007b65" if perpendicular else "#a34c00"
+            text = (f"Angle to copper-center axis: {angle:.2f}° | "
+                    f"Deviation from 90°: {deviation:.2f}°\n"
+                    "Drag tab endpoints to align with the dotted 90° guide.")
+            direction = g["direction"]
+            reference = axis if np.dot(axis, direction) >= 0 else -axis
+            radius = g["spacing"] * .065
+            if perpendicular:
+                line([center+radius*reference,
+                      center+radius*(reference+direction), center+radius*direction],
+                     color=color, lw=1.8, zorder=8)
+            else:
+                start = np.arctan2(reference[1], reference[0])
+                turn = np.arctan2(reference[0]*direction[1]-reference[1]*direction[0],
+                                  np.dot(reference, direction))
+                angles = np.linspace(start, start+turn, 40)
+                arc = center + radius*np.column_stack((np.cos(angles), np.sin(angles)))
+                line(arc, color=color, lw=1.8, zorder=8)
+        artists.append(self.ax.text(
+            .02, .97, text, transform=self.ax.transAxes, va="top", fontsize=9,
+            color=color, zorder=12, bbox=dict(fc="white", ec=color, alpha=.94, pad=5)))
+        return artists
 
     def draw_ruler_ticks(self, axes, points):
         points = np.asarray(points, dtype=float)

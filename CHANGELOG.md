@@ -1,5 +1,11 @@
 # Historial de cambios
 
+## 5.4.2 — 2026-09-25
+
+- Guía angular durante la revisión del puente central: eje entre centros del cobre, perpendicular por el primer extremo y arco con ángulo y desviación respecto a 90° actualizados al arrastrar.
+- Referencia independiente de la rotación de la imagen y de los centros del aislamiento; no altera los puntos ni la distancia medida.
+- Pruebas de rotación, inversión de extremos, geometría degenerada, arrastre, limpieza de guías y conservación de medidas.
+
 ## Web 1.0 — 2026-09-25
 
 - Interfaz adaptable en español para GitHub Pages, conservando la aplicación de escritorio.

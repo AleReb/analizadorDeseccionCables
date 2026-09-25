@@ -2,7 +2,7 @@
 
 Aplicación de escritorio para medir cortes transversales de cables de dos conductores a partir de fotografías. Permite calibrar una escala, ajustar círculos al aislamiento y al conductor, medir el puente central y exportar un informe con etiquetas y un CSV.
 
-**Versión:** 5.4.1 · **Licencia:** [CERN-OHL-S-2.0](LICENSE) · **Interfaz:** inglés · **Guía:** español.
+**Versión de escritorio:** 5.4.2 · **Licencia:** [CERN-OHL-S-2.0](LICENSE) · **Interfaz de escritorio:** inglés · **Guía:** español.
 
 ## Instalación y ejecución
 
@@ -113,6 +113,16 @@ El detector está preparado para el aislamiento verde/amarillo de las fotos sumi
 La detección usa segmentación HSV, contornos y distancias de imagen con [OpenCV](https://docs.opencv.org/4.13.0/d3/dc0/group__imgproc__shape.html). No usa los valores nominales de los requisitos para forzar las medidas. El puente se propone a partir de varias secciones perpendiculares al eje entre lóbulos; revisar sus extremos en la imagen antes de aceptarlo. Todo el procesamiento se realiza localmente.
 
 ## Controles y correcciones
+
+### Guía angular del puente central (Python 5.4.2)
+
+Durante el paso **CENTRAL TAB**, una línea morada discontinua une los centros de los **núcleos de cobre** ya ajustados. Una guía verde punteada indica la perpendicular a ese eje: inicialmente pasa por el punto medio de los centros y, al marcar el primer extremo del puente, pasa por ese extremo. Una línea morada punteada paralela al eje sirve como referencia del ángulo en ese punto.
+
+Al marcar el segundo extremo aparece el ángulo agudo entre la medición del puente y el eje del cobre (0–90°), junto con la desviación respecto a 90°. El arco y los valores se actualizan al arrastrar cualquiera de los puntos. Cuando la dirección es perpendicular, el arco se sustituye por una escuadra. Las guías giran con el eje entre los centros, independientemente de la rotación de la fotografía o de la excentricidad del aislamiento.
+
+Esta es una ayuda visual durante la revisión: no bloquea ni mueve los puntos y no proyecta ni corrige la distancia medida. El espesor sigue siendo la distancia entre los extremos que el usuario acepta. Los ángulos se muestran con dos decimales; el redondeo a 90,00° no implica perpendicularidad matemática exacta. Las guías auxiliares no se incluyen en el informe. Los centros coincidentes o los extremos coincidentes no producen un ángulo válido. Esta función corresponde al programa Python; la web mantiene su versión actual.
+
+Prueba específica: `python test_tab_angle_guide.py`.
 
 El visor ocupa el espacio disponible y se redimensiona junto con la ventana. **Zoom** cambia la ampliación de la imagen; **100%** significa imagen completa ajustada al visor. **Fit Image** muestra la foto completa, conservando su proporción; las fotos verticales pueden dejar márgenes laterales. **Fill View** llena el visor conservando la proporción y recortando lo que no cabe. Para trabajar con más altura, usar **Hide Results** y recuperar la tabla con **Show Results**. El separador entre tabla e imagen sigue siendo ajustable.
 
